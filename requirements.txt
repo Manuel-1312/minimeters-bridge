@@ -1,0 +1,6 @@
+pyaudiowpatch
+numpy
+scipy
+websockets
+pycaw
+comtypes
