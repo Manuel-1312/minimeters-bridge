@@ -1,6 +1,9 @@
-pyaudiowpatch
 numpy
 scipy
 websockets
-pycaw
-comtypes
+
+# Captura de audio: WASAPI loopback en Windows, PortAudio en macOS/Linux.
+pyaudiowpatch; sys_platform == "win32"
+pycaw; sys_platform == "win32"
+comtypes; sys_platform == "win32"
+sounddevice; sys_platform != "win32"
