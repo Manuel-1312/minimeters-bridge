@@ -73,15 +73,17 @@ then 512 Mel bins, 512 oscilloscope samples and a 3×192×2 vectorscope block.
 
 ## The visualizer (frontend)
 
-The easiest way to see the meters in Spotify is the **Spicetify extension**: install
-**MiniMeters Visualizer** from the Spicetify Marketplace (one click), then use the
-**MiniMeters** button in the now-playing bar to open the full-screen meters. It needs this
-bridge running for data. See [`extension/`](extension/).
+This repo is just the audio **bridge** (the backend). The on-screen meters are **RealMeters**,
+a separate Spicetify frontend:
 
-Prefer the original custom-app renderer? It's a renderer for
-**[Konsl's spicetify-visualizer](https://github.com/Konsl/spicetify-visualizer)** (MIT), with
-manual setup steps in [`visualizer/`](visualizer/). All credit for the visualizer framework
-goes to Konsl; only the `MiniMeters` renderer and this bridge are mine.
+- **One click:** install **RealMeters** from the Spicetify Marketplace (Extensions tab), then
+  open it from the button in the now-playing bar.
+- Source: [Manuel-1312/realmeters-spotify](https://github.com/Manuel-1312/realmeters-spotify)
+  (also available there as a custom app with a dedicated sidebar page).
+
+RealMeters needs this bridge running for data. The renderer began as one for
+**[Konsl's spicetify-visualizer](https://github.com/Konsl/spicetify-visualizer)** (MIT); a
+copy of that renderer is kept in [`visualizer/`](visualizer/) for reference.
 
 ## License
 MIT — see [LICENSE](LICENSE).
