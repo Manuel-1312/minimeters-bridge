@@ -34,9 +34,18 @@ Windows + Python 3.12.
 The frame rate is the `FPS` constant in `bridge.py` (144 by default; 50–60 is plenty if you
 want less CPU). It uses roughly 10–20 % of one core.
 
-Auto-start (optional): a Scheduled Task at logon running `pythonw bridge.py` keeps it up in
-the background. The `reset` WebSocket message resets integrated LUFS; the bridge reopens
-itself automatically if the default output device changes.
+## Auto-start (Windows)
+
+One command installs the dependencies and registers a Scheduled Task that runs
+`pythonw bridge.py` in the background at logon:
+
+    powershell -ExecutionPolicy Bypass -File install.ps1
+
+The task has no run-time limit, restarts on failure and starts 30 s after logon so the
+audio device is ready. Remove it with `uninstall.ps1`.
+
+The `reset` WebSocket message resets integrated LUFS; the bridge reopens itself
+automatically if the default output device changes.
 
 ## Frame layout
 See the docstring at the top of `bridge.py` — Float32 little-endian: a 32-value header,
