@@ -72,10 +72,16 @@ See the docstring at the top of `bridge.py` — Float32 little-endian: a 32-valu
 then 512 Mel bins, 512 oscilloscope samples and a 3×192×2 vectorscope block.
 
 ## The visualizer (frontend)
-The drawing side is a renderer for **[Konsl's spicetify-visualizer](https://github.com/Konsl/spicetify-visualizer)**
-(MIT). This repo ships that renderer and its setup steps in [`visualizer/`](visualizer/).
-All credit for the visualizer framework goes to Konsl; only the `MiniMeters` renderer and
-this bridge are mine.
+
+The easiest way to see the meters in Spotify is the **Spicetify extension**: install
+**MiniMeters Visualizer** from the Spicetify Marketplace (one click), then use the
+**MiniMeters** button in the now-playing bar to open the full-screen meters. It needs this
+bridge running for data. See [`extension/`](extension/).
+
+Prefer the original custom-app renderer? It's a renderer for
+**[Konsl's spicetify-visualizer](https://github.com/Konsl/spicetify-visualizer)** (MIT), with
+manual setup steps in [`visualizer/`](visualizer/). All credit for the visualizer framework
+goes to Konsl; only the `MiniMeters` renderer and this bridge are mine.
 
 ## License
 MIT — see [LICENSE](LICENSE).
