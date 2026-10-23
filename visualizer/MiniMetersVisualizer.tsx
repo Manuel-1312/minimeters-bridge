@@ -223,7 +223,7 @@ type State = {
 	silentSince: number; // fade_modules_during_silence
 	alpha: number;
 	lastT: number; // ts del último frame ingerido (decaimientos indep. de fps)
-	nextRenderT: number; // cap del render a 144 fps
+	nextRenderT: number; // cap del render a 60 fps
 	spectroSeq: number; // último seq de datos dibujado en el espectrograma
 };
 const WAVE_CAP = 4096;
@@ -855,10 +855,10 @@ export default function MiniMetersVisualizer(props: RendererProps) {
 		if (!ctx || S.isError) return;
 		try {
 			const now = ctx.canvas.ownerDocument.defaultView?.performance.now() ?? 0;
-			// cap del render a 144 fps (acumulador): con --disable-frame-rate-limit el rAF
+			// cap del render a 60 fps (acumulador): con --disable-frame-rate-limit el rAF
 			// sube a ~200; esto evita dibujar por encima de lo que el monitor 144 Hz muestra.
 			if (now < S.nextRenderT) return;
-			S.nextRenderT = Math.max(now, S.nextRenderT + 1000 / 144);
+			S.nextRenderT = Math.max(now, S.nextRenderT + 1000 / 60);
 			const W = ctx.canvas.width;
 			const Hh = ctx.canvas.height;
 			const dpr = ctx.canvas.ownerDocument.defaultView?.devicePixelRatio ?? 1;

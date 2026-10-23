@@ -32,7 +32,7 @@ from scipy import signal
 
 HOST = "127.0.0.1"
 PORT = 8985
-FPS = 144  # tasa de envío (antes 50): datos y scroll del espectrograma a 144 fps
+FPS = 60  # tasa de envío capada a 60 fps
 SCOPE_DIV = max(1, round(FPS / 24))  # osciloscopio ~24 fps (autocorrelación 8192 es cara)
 NFFT = 8192
 NMEL = 512
