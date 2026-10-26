@@ -27,6 +27,8 @@ jobs:
       # (tono de 997 Hz a -20 dBFS en ambos canales -> -20 LUFS / -20 dBTP).
       - name: DSP
         shell: python
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           import time
           import numpy as np
