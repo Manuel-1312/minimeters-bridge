@@ -65,6 +65,15 @@ numpy, scipy and websockets everywhere, plus the platform's capture backend:
 pyaudiowpatch + pycaw + comtypes on Windows, [sounddevice](https://python-sounddevice.readthedocs.io)
 (PortAudio) on macOS/Linux. `requirements.txt` picks the right ones by platform marker.
 
+**macOS, one command** — from the extracted folder:
+
+    bash install-macos.sh      # remove later with: bash uninstall-macos.sh
+
+It needs Python 3.10+ (`brew install python@3.12`) and the Xcode Command Line Tools
+(`xcode-select --install`). It installs the bridge under `~/Library/Application Support/MiniMetersBridge`
+as a small background app (*MiniMetersBridge*) started at login, and asks macOS for audio input
+permission once — click **Allow**. You still create the Multi-Output Device yourself (step 2 below).
+
 ### Capture setup
 
 **macOS** — macOS has no native loopback, so you need a virtual audio driver and you have to
@@ -79,9 +88,11 @@ send the output to it:
    system output, so you keep hearing the audio while BlackHole receives a copy.
    Tip: in a Multi-Output Device, set your real output as the **Primary** device (the
    *Master Device* column) and tick *Drift Correction* on the others.
-3. The first run asks for microphone permission (macOS gates every input device, virtual
-   ones included). Grant it to the app that launches the bridge — Terminal, iTerm…;
-   otherwise the capture opens fine but reads pure silence.
+3. macOS gates every input device, virtual ones included, behind the microphone permission;
+   without it the capture opens fine but reads pure silence. With the installer the permission
+   belongs to *MiniMetersBridge*; running `python bridge.py` by hand, to your terminal app.
+   A plain Python started in the background (e.g. your own `launchd` agent) cannot get it —
+   that is why the installer wraps it in an app.
 
 With a Multi-Output Device the macOS volume slider is disabled — use the volume in Spotify,
 or set the level on the real output inside *Audio MIDI Setup*. This does not affect the
@@ -109,8 +120,7 @@ if the guess is wrong:
 If the meters sit at −120 LUFS with the music playing, the bridge is capturing a silent
 device: check the setup above (`bridge.log` records which device it opened).
 
-Auto-start (optional, macOS): a `launchd` agent in `~/Library/LaunchAgents/` with
-`RunAtLoad` and `KeepAlive` running `python3 /path/to/bridge.py` (`launchctl load` it once).
+On macOS, `install-macos.sh` sets up auto-start for you.
 
 ## What it computes (60 fps by default, ~9 KB/frame)
 - **Spectrum** — FFT 8192 (Hann) on the Mid channel → 512-bin Mel spectrum (20 Hz–20 kHz),

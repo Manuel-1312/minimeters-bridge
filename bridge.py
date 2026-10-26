@@ -508,6 +508,10 @@ class SdCapture:
 
     def open(self):
         self.close()
+        # PortAudio cachea la lista de dispositivos: se reinicia para ver los añadidos después
+        # (p. ej. BlackHole instalado con el bridge ya corriendo)
+        sd._terminate()
+        sd._initialize()
         idx = pick_device(self.want)
         d = sd.query_devices(idx)
         fs = int(d["default_samplerate"])
@@ -569,13 +573,17 @@ async def main(device):
     period = 1.0 / FPS
     next_t = time.perf_counter()
     last_check = 0.0
+    last_err = None
     while True:
         now = time.perf_counter()
         if not cap.alive():
             try:
                 cap.open()
+                last_err = None
             except Exception as e:
-                log.warning("no se pudo abrir la captura: %s", e)
+                if str(e) != last_err:  # reintenta cada 2 s; solo se registra si el error cambia
+                    log.warning("no se pudo abrir la captura: %s", e)
+                    last_err = str(e)
                 await asyncio.sleep(2.0)
                 continue
         if now - last_check > 1.0:

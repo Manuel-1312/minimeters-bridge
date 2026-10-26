@@ -1,3 +1,4 @@
 # Keep Windows batch files as CRLF everywhere (including the "Download ZIP" path),
 # so double-clicking them always works in cmd.exe.
 *.bat -text
+*.sh text eol=lf
