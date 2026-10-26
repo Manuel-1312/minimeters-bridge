@@ -35,12 +35,19 @@ for c in python3.13 python3.12 python3.11 python3.10 python3; do
         PY="$(command -v "$c")"; break
     fi
 done
-xcode-select -p >/dev/null 2>&1     || fail "The Xcode Command Line Tools are required (to build the small app wrapper)." "Install them with:  xcode-select --install   then run this again."
+xcode-select -p >/dev/null 2>&1 \
+    || fail "The Xcode Command Line Tools are required (to build the small app wrapper)." "Install them with:  xcode-select --install   then run this again."
 [ -n "$PY" ] || fail "Python 3.10 or newer is required." "Install it with:  brew install python@3.12   (or from python.org), then run this again."
 ok "$("$PY" -V) at $PY"
 
 step "Installing to $APP"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true  # parar la versión anterior antes de tocar sus ficheros
+for _ in $(seq 1 20); do  # bootout es asíncrono: bootstrap falla si el servicio aún existe
+    launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break
+    sleep 0.5
+done
+lsof -nP -iTCP:8985 -sTCP:LISTEN >/dev/null 2>&1 \
+    && fail "Something is already listening on port 8985 (a bridge started from Terminal?)." "Stop it (Ctrl+C in its window) and run this again."
 mkdir -p "$APP"
 cp "$SRC/bridge.py" "$SRC/requirements.txt" "$SRC/test_client.py" "$APP/"
 "$PY" -m venv "$APP/.venv"
@@ -52,24 +59,10 @@ ok "virtual environment ready"
 step "Building MiniMetersBridge.app"
 # El lanzador es un binario dentro de un .app con NSMicrophoneUsageDescription: Python
 # arranca como hijo suyo y TCC atribuye el permiso de entrada de audio a la app.
-rm -rf "$BUNDLE"
-mkdir -p "$BUNDLE/Contents/MacOS"
-cat > "$BUNDLE/Contents/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleIdentifier</key><string>$LABEL</string>
-    <key>CFBundleName</key><string>MiniMetersBridge</string>
-    <key>CFBundleExecutable</key><string>MiniMetersBridge</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleVersion</key><string>1.1</string>
-    <key>LSUIElement</key><true/>
-    <key>NSMicrophoneUsageDescription</key><string>MiniMeters bridge reads the system audio (BlackHole or similar) to measure it for the Spotify visualizer. Nothing is recorded or sent anywhere.</string>
-</dict>
-</plist>
-EOF
-cat > "$APP/launcher.c" <<'EOF'
+# Con firma ad-hoc el permiso va ligado al hash del binario: solo se reconstruye si cambia
+# el lanzador, para que una actualización no pierda el permiso ya concedido.
+NEW_SRC="$(mktemp)"
+cat > "$NEW_SRC" <<'EOF'
 #include <errno.h>
 #include <signal.h>
 #include <spawn.h>
@@ -89,9 +82,32 @@ int main(int argc, char **argv) {
     return WIFEXITED(st) ? WEXITSTATUS(st) : 1;
 }
 EOF
+if [ -x "$LAUNCHER" ] && cmp -s "$NEW_SRC" "$APP/launcher.c" && codesign -v "$BUNDLE" >/dev/null 2>&1; then
+    rm -f "$NEW_SRC"
+    ok "kept the existing app (audio permission is preserved)"
+else
+rm -rf "$BUNDLE"
+mkdir -p "$BUNDLE/Contents/MacOS"
+mv "$NEW_SRC" "$APP/launcher.c"
+cat > "$BUNDLE/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>$LABEL</string>
+    <key>CFBundleName</key><string>MiniMetersBridge</string>
+    <key>CFBundleExecutable</key><string>MiniMetersBridge</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleVersion</key><string>1.1</string>
+    <key>LSUIElement</key><true/>
+    <key>NSMicrophoneUsageDescription</key><string>MiniMeters bridge reads the system audio (BlackHole or similar) to measure it for the Spotify visualizer. Nothing is recorded or sent anywhere.</string>
+</dict>
+</plist>
+EOF
 cc -O2 -o "$LAUNCHER" "$APP/launcher.c" || fail "Could not compile the app wrapper."
 codesign --force --sign - "$BUNDLE" >/dev/null 2>&1 || fail "Could not sign the app wrapper."
 ok "$BUNDLE"
+fi
 
 step "Checking for a loopback audio device"
 DEVICES="$("$APP/.venv/bin/python" "$APP/bridge.py" --list-devices 2>/dev/null || true)"

@@ -71,6 +71,8 @@ jobs:
             sudo sqlite3 "$db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceMicrophone','io.github.manuel-1312.minimeters-bridge',0,2,3,1,NULL,NULL,0,'UNUSED',NULL,0,$(date +%s),NULL,NULL,'UNUSED',$(date +%s));" || true
           done
       - run: bash install-macos.sh
+      # segunda pasada = actualización: debe conservar la app y volver a levantar el servicio
+      - run: bash install-macos.sh | tee reinstall.txt && grep -q "kept the existing app" reinstall.txt
       - name: Tone through the bridge
         run: |
           APP="$HOME/Library/Application Support/MiniMetersBridge"
