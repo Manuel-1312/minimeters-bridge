@@ -6,10 +6,11 @@ import { RendererProps } from "../../defs";
 // =============================================================================
 // MiniMeters — réplica del preset "Analisis Master" (layout Horizontal, tema y
 // colormap Darktable) dentro del visualizer de Spotify, alimentada con AUDIO REAL:
-// el bridge local (~/minimeters-bridge/bridge.py) captura el loopback WASAPI de la
-// salida por defecto (igual que "Default Output Capture" en MiniMeters), calcula
-// FFT 8192, LUFS EBU R128, true peak, correlación y bandas, y lo sirve por
-// WebSocket en 127.0.0.1:8985. Aquí sólo se dibuja.
+// el bridge local (~/minimeters-bridge/bridge.py) captura la salida del sistema
+// (loopback WASAPI en Windows, un dispositivo virtual tipo BlackHole en macOS;
+// igual que "Default Output Capture" en MiniMeters), calcula FFT 8192, LUFS EBU
+// R128, true peak, correlación y bandas, y lo sirve por WebSocket en
+// 127.0.0.1:8985. Aquí sólo se dibuja.
 // =============================================================================
 
 // ---- protocolo del bridge (ver docstring de bridge.py) ----

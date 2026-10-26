@@ -1,7 +1,11 @@
 """
-MiniMeters bridge — captura el loopback WASAPI de la salida por defecto (lo mismo que
-"Default Output Capture" en MiniMeters), calcula medidas reales y las sirve por
-WebSocket en 127.0.0.1:8985 al visualizer de Spotify (Spicetify).
+MiniMeters bridge — captura la salida del sistema (lo mismo que "Default Output Capture"
+en MiniMeters), calcula medidas reales y las sirve por WebSocket en 127.0.0.1:8985 al
+visualizer de Spotify (Spicetify).
+
+Windows: loopback WASAPI de la salida por defecto. macOS/Linux: un dispositivo de entrada
+que lleve la salida (BlackHole, monitor de PulseAudio…), autodetectado o elegido con
+-d / MINIMETERS_DEVICE (--list-devices los enumera).
 
 Frame binario (Float32 little-endian), layout fijo:
   [0]  version (2)          [1]  sampleRate
@@ -18,6 +22,7 @@ Frame binario (Float32 little-endian), layout fijo:
   [.. : ..+NSCOPE]                     osciloscopio (mid, -1..1)
   [.. : ..+3*NVEC*2]                   vectorscopio: low, mid, high; pares (L,R)
 """
+import argparse
 import asyncio
 import logging
 import os
@@ -26,9 +31,14 @@ import threading
 import time
 
 import numpy as np
-import pyaudiowpatch as pa
 import websockets
 from scipy import signal
+
+WIN = sys.platform == "win32"
+if WIN:
+    import pyaudiowpatch as pa
+else:
+    import sounddevice as sd
 
 HOST = "127.0.0.1"
 PORT = 8985
@@ -41,6 +51,8 @@ NVEC = 192
 HDR = 32
 FRAME_FLOATS = HDR + NMEL + NSCOPE + 3 * NVEC * 2
 F_LO, F_HI = 20.0, 20000.0
+# macOS/Linux: subcadenas (minúsculas) de drivers de loopback conocidos, por prioridad
+LOOPBACK_HINTS = ("blackhole", "loopback", "soundflower", "background music", "vb-cable", "monitor of")
 
 LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge.log")
 logging.basicConfig(
@@ -139,7 +151,7 @@ class Dsp:
         self.scope_cache = (np.zeros(NSCOPE, dtype=np.float32), 0.0, 0.0)
 
     # --- captura ---
-    def push(self, data: bytes):
+    def push(self, data):
         x = np.frombuffer(data, dtype=np.float32)
         if self.ch >= 2:
             x = x.reshape(-1, self.ch)[:, :2]
@@ -147,6 +159,7 @@ class Dsp:
             x = np.repeat(x.reshape(-1, 1), 2, axis=1)
         # El loopback WASAPI llega POST volumen maestro de Windows; se compensa (como hace
         # MiniMeters) para que las lecturas sean independientes del slider de volumen.
+        # En macOS/Linux gain queda en 1.0 (el dispositivo virtual recibe la señal pre-volumen).
         x = x * self.gain
         with self.lock:
             self.pending.append(x.astype(np.float32, copy=False))
@@ -390,7 +403,7 @@ class Dsp:
         return f.tobytes()
 
 
-class Capture:
+class WasapiCapture:
     """Abre el loopback del dispositivo de salida por defecto; se reabre si cambia/falla."""
 
     def __init__(self):
@@ -416,6 +429,7 @@ class Capture:
 
     def open(self):
         self.close()
+        self.endpoint = None
         w = self.pa.get_default_wasapi_loopback()
         fs = int(w["defaultSampleRate"])
         ch = int(w["maxInputChannels"])
@@ -462,9 +476,79 @@ class Capture:
             return False
 
 
-async def main():
+def input_devices():
+    return [(i, d) for i, d in enumerate(sd.query_devices()) if d["max_input_channels"] > 0]
+
+
+def pick_device(want):
+    """Índice del dispositivo de entrada: el pedido (índice o subcadena) o el primer loopback conocido."""
+    devs = input_devices()
+    if want:
+        for i, d in devs:
+            if want == str(i) or want.lower() in d["name"].lower():
+                return i
+        raise RuntimeError(f"no hay dispositivo de entrada que coincida con {want!r} (ver --list-devices)")
+    for hint in LOOPBACK_HINTS:
+        for i, d in devs:
+            if hint in d["name"].lower():
+                return i
+    raise RuntimeError("no se encontró dispositivo de loopback (¿BlackHole instalado?); ver --list-devices y -d")
+
+
+class SdCapture:
+    """macOS/Linux: lee un dispositivo de entrada que lleve la salida del sistema (PortAudio)."""
+
+    def __init__(self, want):
+        self.want = want
+        self.stream = None
+        self.dsp = None
+
+    def master_gain(self):
+        return 1.0
+
+    def open(self):
+        self.close()
+        idx = pick_device(self.want)
+        d = sd.query_devices(idx)
+        fs = int(d["default_samplerate"])
+        ch = min(2, int(d["max_input_channels"]))
+        self.dsp = Dsp(fs, ch)
+
+        def cb(data, frames, t, status):
+            try:
+                self.dsp.push(data)
+            except Exception:
+                pass
+
+        self.stream = sd.RawInputStream(
+            device=idx,
+            channels=ch,
+            samplerate=fs,
+            dtype="float32",
+            blocksize=int(fs * 0.01),
+            callback=cb,
+        )
+        self.stream.start()
+        log.info("captura abierta: %s @ %d Hz, %d ch", d["name"], fs, ch)
+
+    def close(self):
+        if self.stream is not None:
+            try:
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+
+    def alive(self):
+        return self.stream is not None and self.stream.active
+
+    def default_changed(self):
+        return False
+
+
+async def main(device):
     clients = set()
-    cap = Capture()
+    cap = WasapiCapture() if WIN else SdCapture(device)
 
     async def handler(ws):
         clients.add(ws)
@@ -500,7 +584,6 @@ async def main():
                 log.info("dispositivo por defecto cambió; reabriendo")
                 try:
                     cap.open()
-                    cap.endpoint = None
                 except Exception as e:
                     log.warning("reapertura falló: %s", e)
             if cap.dsp is not None:
@@ -526,7 +609,18 @@ async def main():
 
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description="MiniMeters bridge")
+    ap.add_argument("-d", "--device", default=os.environ.get("MINIMETERS_DEVICE"),
+                    help="macOS/Linux: dispositivo de entrada (índice o parte del nombre)")
+    ap.add_argument("--list-devices", action="store_true", help="macOS/Linux: lista los dispositivos de entrada")
+    args = ap.parse_args()
+    if args.list_devices:
+        if WIN:
+            sys.exit("en Windows se usa siempre el loopback de la salida por defecto")
+        for i, d in input_devices():
+            print(f"{i:3d}  {d['name']}  ({d['max_input_channels']} ch, {int(d['default_samplerate'])} Hz)")
+        sys.exit(0)
     try:
-        asyncio.run(main())
+        asyncio.run(main(args.device))
     except KeyboardInterrupt:
         pass

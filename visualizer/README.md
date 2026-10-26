@@ -34,12 +34,15 @@ renderers — goes to Konsl. This file only adds one renderer.
 4. Build and install the custom app:
 
        npm run build
-       # copy dist/{index.js,manifest.json,style.css} into
-       #   %APPDATA%\spicetify\CustomApps\visualizer\
+       # copy dist/{index.js,manifest.json,style.css} into the visualizer custom app,
+       # inside spicetify's user data folder (`spicetify path userdata` prints it):
+       #   Windows: %APPDATA%\spicetify\CustomApps\visualizer\
+       #   macOS/Linux: ~/.config/spicetify/CustomApps/visualizer/
        spicetify apply
 
 5. Start the bridge (`python bridge.py` from the repo root) and open the visualizer in
-   Spotify, then pick **MiniMeters**.
+   Spotify, then pick **MiniMeters**. On macOS the bridge needs a virtual audio device
+   first — see *Capture setup* in the repo-root README.
 
 The renderer connects to `ws://127.0.0.1:8985`. If the bridge is not running it shows
 *bridge sin conexión*.
