@@ -9,4 +9,5 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 rm -f "$PLIST"
 rm -rf "$APP"
+tccutil reset Microphone "$LABEL" >/dev/null 2>&1 || true
 echo "MiniMeters bridge removed. (BlackHole and the Multi-Output Device are left as they are.)"

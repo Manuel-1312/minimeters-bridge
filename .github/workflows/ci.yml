@@ -62,15 +62,20 @@ jobs:
           sleep 5
           SwitchAudioSource -a
           SwitchAudioSource -s "BlackHole 2ch"
+      # simula el "Allow" del usuario: permiso de entrada de audio para MiniMetersBridge.app
+      # (el runner no tiene a nadie que pulse el aviso)
+      - name: Grant microphone to the app
+        run: |
+          for db in "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "/Library/Application Support/com.apple.TCC/TCC.db"; do
+            sudo sqlite3 "$db" ".schema access" | head -c 400; echo
+            sudo sqlite3 "$db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceMicrophone','io.github.manuel-1312.minimeters-bridge',0,2,3,1,NULL,NULL,0,'UNUSED',NULL,0,$(date +%s),NULL,NULL,'UNUSED',$(date +%s));" || true
+          done
       - run: bash install-macos.sh
       - name: Tone through the bridge
         run: |
           APP="$HOME/Library/Application Support/MiniMetersBridge"
           "$APP/.venv/bin/python" -c "import numpy as n,wave;t=n.arange(48000*20)/48000;s=(0.1*n.sin(2*n.pi*997*t)*32767).astype('<i2');w=wave.open('tone.wav','wb');w.setnchannels(2);w.setsampwidth(2);w.setframerate(48000);w.writeframes(n.repeat(s,2).tobytes());w.close()"
           afplay tone.wav & sleep 6
-          SwitchAudioSource -c
-          # diagnóstico: la misma captura desde la shell (fuera de launchd)
-          "$APP/.venv/bin/python" -c "import sounddevice as sd,numpy as n;x=sd.rec(48000,samplerate=48000,channels=2,device='BlackHole 2ch',dtype='float32');sd.wait();print('shell peak',float(n.abs(x).max()))"
           "$APP/.venv/bin/python" "$APP/test_client.py" 3 | tee out.txt
           cat "$APP/bridge.log"
           python -c "import re,sys;m=float(re.search(r'LUFS M=(-?[\d.]+)',open('out.txt').read()).group(1));print('LUFS M',m);sys.exit(abs(m+20)>1)"
