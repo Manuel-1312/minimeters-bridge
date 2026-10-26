@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+      - run: pip install -r requirements.txt
+      # Los runners no tienen audio: se comprueba el import del backend y la calibración del DSP
+      # (tono de 997 Hz a -20 dBFS en ambos canales -> -20 LUFS / -20 dBTP).
+      - name: DSP
+        shell: python
+        run: |
+          import time
+          import numpy as np
+          import bridge
+          d = bridge.Dsp(48000, 2)
+          t = np.arange(48000 * 4) / 48000
+          s = (0.1 * np.sin(2 * np.pi * 997 * t)).astype(np.float32)
+          d.push(np.stack([s, s], 1).tobytes())
+          d.ingest(d.pull())
+          f = np.frombuffer(d.frame(time.time()), np.float32)
+          print("LUFS M", f[2], "TP", f[6], "pico Hz", f[12])
+          assert len(f) == bridge.FRAME_FLOATS
+          assert abs(f[2] + 20) < 0.1 and abs(f[6] + 20) < 0.1 and abs(f[12] - 997) < 1
+      - if: runner.os != 'Windows'
+        run: python bridge.py --list-devices
